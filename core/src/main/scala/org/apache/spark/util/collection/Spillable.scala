@@ -47,7 +47,9 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
   // It's used for checking spilling frequency
   protected def addElementsRead(): Unit = { _elementsRead += 1 }
 
-  // Initial threshold for the size of a collection before we start tracking its memory usage
+  //
+  // 溢写磁盘的大小 , 默认5M
+  //Initial threshold for the size of a collection before we start tracking its memory usage
   // For testing only
   private[this] val initialMemoryThreshold: Long =
     SparkEnv.get.conf.getLong("spark.shuffle.spill.initialMemoryThreshold", 5 * 1024 * 1024)
@@ -80,23 +82,42 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
    */
   protected def maybeSpill(collection: C, currentMemory: Long): Boolean = {
     var shouldSpill = false
+
+    // 元素是32的整数倍 并且 当前使用的内存 大于 初始内存的阈值(5M)
     if (elementsRead % 32 == 0 && currentMemory >= myMemoryThreshold) {
+
+      // 从shuffle内存池中获取最多两倍的当前内存
       // Claim up to double our current memory from the shuffle memory pool
       val amountToRequest = 2 * currentMemory - myMemoryThreshold
+      // 申请内存
       val granted = acquireMemory(amountToRequest)
+
+      // 更新当前使用的内存
       myMemoryThreshold += granted
+
+      // 如果新申请的内存还放不下数据的话, 则直接溢写
       // If we were granted too little memory to grow further (either tryToAcquire returned 0,
       // or we already had more memory than myMemoryThreshold), spill the current collection
       shouldSpill = currentMemory >= myMemoryThreshold
     }
+    // 是否溢写 : 是否超过内存限制 或者  数据条数大于 限制 Long.MaxValue .
     shouldSpill = shouldSpill || _elementsRead > numElementsForceSpillThreshold
+
+    // 开始执行溢写操作
     // Actually spill
     if (shouldSpill) {
       _spillCount += 1
+      // 记录日志
       logSpillage(currentMemory)
+
+      // 溢写数据
       spill(collection)
+
+      // 初始化
       _elementsRead = 0
       _memoryBytesSpilled += currentMemory
+
+      // 释放内存
       releaseMemory()
     }
     shouldSpill
@@ -131,6 +152,7 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
    * Release our memory back to the execution pool so that other tasks can grab it.
    */
   def releaseMemory(): Unit = {
+    // 释放内存
     freeMemory(myMemoryThreshold - initialMemoryThreshold)
     myMemoryThreshold = initialMemoryThreshold
   }

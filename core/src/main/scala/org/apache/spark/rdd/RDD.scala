@@ -334,6 +334,7 @@ abstract class RDD[T: ClassTag](
     if (isCheckpointedAndMaterialized) {
       firstParent[T].iterator(split, context)
     } else {
+      // 计算操作.
       compute(split, context)
     }
   }

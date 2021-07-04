@@ -185,7 +185,11 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     boolean success = false;
     try {
       while (records.hasNext()) {
+
+        //写数据
         insertRecordIntoSorter(records.next());
+
+
       }
       closeAndWriteOutput();
       success = true;
@@ -254,16 +258,22 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   @VisibleForTesting
   void insertRecordIntoSorter(Product2<K, V> record) throws IOException {
     assert(sorter != null);
+    // 我们数据的key
     final K key = record._1();
+
+    // 分区号
     final int partitionId = partitioner.getPartition(key);
     serBuffer.reset();
+    // serOutputStream是能序列化写的流。把key序列化写进字节数组
     serOutputStream.writeKey(key, OBJECT_CLASS_TAG);
     serOutputStream.writeValue(record._2(), OBJECT_CLASS_TAG);
     serOutputStream.flush();
 
+    // kv一共序列化完有多大
     final int serializedRecordSize = serBuffer.size();
     assert (serializedRecordSize > 0);
 
+    // 还有一个东西是sorter，Platform.BYTE_ARRAY_OFFSET是字节数组第一个元素的偏移量，因为java对象有对象头。
     sorter.insertRecord(
       serBuffer.getBuf(), Platform.BYTE_ARRAY_OFFSET, serializedRecordSize, partitionId);
   }

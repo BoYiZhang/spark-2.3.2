@@ -100,7 +100,11 @@ private[spark] class ShuffleMapTask(
     logInfo("org.apache.spark.ShuffleMapTask#ResultTask 将计算 & 结果写入磁盘文件。。。。。。")
     var writer: ShuffleWriter[Any, Any] = null
     try {
+
+      //  获取shuffleManager :  SortShuffleManager
       val manager = SparkEnv.get.shuffleManager
+
+      // 获取writer
       writer = manager.getWriter[Any, Any](dep.shuffleHandle, partitionId, context)
 
 

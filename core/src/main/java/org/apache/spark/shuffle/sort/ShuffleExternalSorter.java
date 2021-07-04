@@ -389,17 +389,31 @@ final class ShuffleExternalSorter extends MemoryConsumer {
     }
 
     growPointerArrayIfNecessary();
+    // 这加4个字节也就是1个int，来存字节数组的长度
     // Need 4 bytes to store the record length.
     final int required = length + 4;
+
+    // 申请内存页。这里要跟taskManager打交道
     acquireNewPageIfNecessary(required);
 
+    // 已经申请到了内存页，肯定!=null。内存页可以是堆也可以是堆外
     assert(currentPage != null);
+
+    // 申请的内存页里面其实就是一个long[]，这个base就是里面的long[]
+    // 如果是堆外的话 这里base是null
     final Object base = currentPage.getBaseObject();
+
+    // 这是用一个long 64位存了两个信息，一个是当前是哪个内存页，一个是内存页里要写入的偏移量
     final long recordAddress = taskMemoryManager.encodePageNumberAndOffset(currentPage, pageCursor);
+
+    // Platform就是unsafe，先放了一个4字节 代表record序列化后的长度
     Platform.putInt(base, pageCursor, length);
+    // 因为放了4个字节，所以游标+4
     pageCursor += 4;
+    // 从序列化完的那个字节数组copy到内存页中。
     Platform.copyMemory(recordBase, recordOffset, base, pageCursor, length);
     pageCursor += length;
+    // inMemSorter里存了索引，记录record在内存页中的信息。分区号是用来排序的
     inMemSorter.insertRecord(recordAddress, partitionId);
   }
 
