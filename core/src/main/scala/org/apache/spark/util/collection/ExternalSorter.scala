@@ -229,6 +229,7 @@ private[spark] class ExternalSorter[K, V, C](
         map = new PartitionedAppendOnlyMap[K, C]
       }
     } else {
+      // 非map类型的数据
       estimatedSize = buffer.estimateSize()
       if (maybeSpill(buffer, estimatedSize)) {
         buffer = new PartitionedPairBuffer[K, C]
@@ -294,6 +295,28 @@ private[spark] class ExternalSorter[K, V, C](
 
     // 获取磁盘的溢写对象
     // fileBufferSize : 32k
+
+    //  writer = {DiskBlockObjectWriter@7500}
+    //      file = {File@7473} "/private/var/folders/37/9746t_yx10v2g49vkwtzjw_80000gn/T/blockmgr-021881f2-19bd-4981-8c78-c4fc8136f8ae/06/temp_shuffle_bae24a5b-22a4-4034-89fd-d726a283ee01"
+    //      serializerManager = {SerializerManager@7073}
+    //      serializerInstance = {JavaSerializerInstance@7375}
+    //      bufferSize = 32768
+    //      syncWrites = false
+    //      writeMetrics = {ShuffleWriteMetrics@7487}
+    //      blockId = {TempShuffleBlockId@7472} "temp_shuffle_bae24a5b-22a4-4034-89fd-d726a283ee01"
+    //      channel = null
+    //      mcs = null
+    //      bs = null
+    //      fos = null
+    //      ts = null
+    //      objOut = null
+    //      initialized = false
+    //      streamOpen = false
+    //      hasBeenClosed = false
+    //      committedPosition = 0
+    //      reportedPosition = 0
+    //      numRecordsWritten = 0
+    //      log_ = null
     val writer: DiskBlockObjectWriter =
       blockManager.getDiskWriter(blockId, file, serInstance, fileBufferSize, spillMetrics)
 
@@ -316,9 +339,11 @@ private[spark] class ExternalSorter[K, V, C](
     var success = false
     try {
       while (inMemoryIterator.hasNext) {
+        // 获取分区id
         val partitionId = inMemoryIterator.nextPartition()
         require(partitionId >= 0 && partitionId < numPartitions,
           s"partition Id: ${partitionId} should be in the range [0, ${numPartitions})")
+        // 写入数据
         inMemoryIterator.writeNext(writer)
         elementsPerPartition(partitionId) += 1
         objectsWritten += 1
@@ -347,7 +372,13 @@ private[spark] class ExternalSorter[K, V, C](
         }
       }
     }
-
+    // 封装返回的SpilledFile 对象,记录数据
+    //  15 = {ExternalSorter$SpilledFile@7820} "SpilledFile(/private/var/folders/37/9746t_yx10v2g49vkwtzjw_80000gn/T/blockmgr-021881f2-19bd-4981-8c78-c4fc8136f8ae/05/temp_shuffle_224b1b0f-ef98-46f2-92a2-0c5175a95b43,temp_shuffle_224b1b0f-ef98-46f2-92a2-0c5175a95b43,[J@41af1a93,[J@65ecae5e)"
+    //      file = {File@7914} "/private/var/folders/37/9746t_yx10v2g49vkwtzjw_80000gn/T/blockmgr-021881f2-19bd-4981-8c78-c4fc8136f8ae/05/temp_shuffle_224b1b0f-ef98-46f2-92a2-0c5175a95b43"
+    //      blockId = {TempShuffleBlockId@7915} "temp_shuffle_224b1b0f-ef98-46f2-92a2-0c5175a95b43"
+    //      serializerBatchSizes = {long[1]@7916} [4383]
+    //      elementsPerPartition = {long[4]@7917} [251, 251, 249, 249]
+    //      $outer = {ExternalSorter@7399}
     SpilledFile(file, blockId, batchSizes.toArray, elementsPerPartition)
   }
 
@@ -363,6 +394,20 @@ private[spark] class ExternalSorter[K, V, C](
    */
   private def merge(spills: Seq[SpilledFile], inMemory: Iterator[((Int, K), C)])
       : Iterator[(Int, Iterator[Product2[K, C]])] = {
+
+    //    spills = {ArrayBuffer@7615} "ArrayBuffer" size = 2497
+    //     0 = {ExternalSorter$SpilledFile@7639} "SpilledFile(/private/var/folders/37/9746t_yx10v2g49vkwtzjw_80000gn/T/blockmgr-9c480511-104d-48ac-b2cd-ac8dacbadfca/38/temp_shuffle_5234abf2-c155-43e2-ac5c-45e99668be07,temp_shuffle_5234abf2-c155-43e2-ac5c-45e99668be07,[J@5a061857,[J@7a5aff68)"
+    //     1 = {ExternalSorter$SpilledFile@xxxx}
+    //     n = {ExternalSorter$SpilledFile@xxxx}
+
+    //
+    //   inMemory = {AppendOnlyMap$$anon$2@7616} "non-empty iterator"
+    //      i = 0
+    //      nullValueReady = false
+    //      $outer = {PartitionedAppendOnlyMap@7623} "PartitionedAppendOnlyMap" size = 503
+    //      newIndex = 503
+
+
     val readers = spills.map(new SpillReader(_))
     val inMemBuffered = inMemory.buffered
 
@@ -720,10 +765,36 @@ private[spark] class ExternalSorter[K, V, C](
       blockId: BlockId,
       outputFile: File): Array[Long] = {
 
+
+      //  xxxx/blockmgr-9c480511-104d-48ac-b2cd-ac8dacbadfca/0c/shuffle_0_0_0.data.a9312076-d7ca-456c-9e1c-62b18ae348b3
     logInfo(" data 文件路径: ExternalSorter # writePartitionedFile   "+ outputFile.getAbsolutePath)
 
     // Track location of each range in the output file
+    // 获取分区的数量  4 , 用于记录偏移量 , 下标即为stage的 偏移量
     val lengths = new Array[Long](numPartitions)
+
+    // 构建 Writer
+    //  writer = {DiskBlockObjectWriter@7180}
+    //      file = {File@7140} "/private/var/folders/37/9746t_yx10v2g49vkwtzjw_80000gn/T/blockmgr-9c480511-104d-48ac-b2cd-ac8dacbadfca/0c/shuffle_0_0_0.data.a9312076-d7ca-456c-9e1c-62b18ae348b3"
+    //      serializerManager = {SerializerManager@2827}
+    //      serializerInstance = {JavaSerializerInstance@7123}
+    //      bufferSize = 32768
+    //      syncWrites = false
+    //      writeMetrics = {ShuffleWriteMetrics@7115}
+    //      blockId = {ShuffleBlockId@7148} "shuffle_0_0_0"
+    //      channel = null
+    //      mcs = null
+    //      bs = null
+    //      fos = null
+    //      ts = null
+    //      objOut = null
+    //      initialized = false
+    //      streamOpen = false
+    //      hasBeenClosed = false
+    //      committedPosition = 0
+    //      reportedPosition = 0
+    //      numRecordsWritten = 0
+    //      log_ = null
     val writer = blockManager.getDiskWriter(blockId, outputFile, serInstance, fileBufferSize,
       context.taskMetrics().shuffleWriteMetrics)
 

@@ -78,18 +78,24 @@ private[spark] class SortShuffleWriter[K, V, C](
     // (see SPARK-3570).
 
 
-    //
-    // 获取shuffle数据文件:   "shuffle_" + shuffleId + "_" + mapId + "_" + reduceId + ".data"
+    // shuffleId : stage id
+    // mapId : partitionId
+    // 获取shuffle数据文件:        "shuffle_" + shuffleId + "_" + mapId + "_" + reduceId + ".data"
+    //  数据示例    /blockmgr-9c480511-104d-48ac-b2cd-ac8dacbadfca/0c/   shuffle_0_2_0.data
     val output = shuffleBlockResolver.getDataFile(dep.shuffleId, mapId)
 
     // 生成文件名称
+    //           blockmgr-9c480511-104d-48ac-b2cd-ac8dacbadfca/0c/shuffle_0_2_0.data.a9312076-d7ca-456c-9e1c-62b18ae348b3
     val tmp = Utils.tempFileWith(output)
     try {
 
       logInfo("将溢写到的磁盘的文件和内存中的数据进行归排序.....")
       // 这一步将溢写到的磁盘的文件和内存中的数据进行归排序
       // 并溢写到一个文件中,这一步写的文件是临时的文件名
+      // shuffle_0_2_0   shuffle_ [stageID] _ [ partitionId ] _ 0
       val blockId = ShuffleBlockId(dep.shuffleId, mapId, IndexShuffleBlockResolver.NOOP_REDUCE_ID)
+
+
       val partitionLengths = sorter.writePartitionedFile(blockId, tmp)
 
 

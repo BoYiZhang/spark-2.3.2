@@ -100,7 +100,7 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
       // or we already had more memory than myMemoryThreshold), spill the current collection
       shouldSpill = currentMemory >= myMemoryThreshold
     }
-    // 是否溢写 : 是否超过内存限制 或者  数据条数大于 限制 Long.MaxValue .
+    // 是否溢写 : 是否超过内存限制 或者  数据条数大于 `spark.shuffle.spill.numElementsForceSpillThreshold` 限制 Long.MaxValue .
     shouldSpill = shouldSpill || _elementsRead > numElementsForceSpillThreshold
 
     // 开始执行溢写操作

@@ -54,9 +54,18 @@ private[spark] class DiskBlockManager(conf: SparkConf, deleteFilesOnStop: Boolea
   // This method should be kept in sync with
   // org.apache.spark.network.shuffle.ExternalShuffleBlockResolver#getFile().
   def getFile(filename: String): File = {
+    // filename : temp_shuffle_402bcc43-e1d1-44c2-9e5b-53d7f6f62ceb
+
+
     // Figure out which local directory it hashes to, and which subdirectory in that
+
+    // 1340714088
     val hash = Utils.nonNegativeHash(filename)
+
+    // 0
     val dirId = hash % localDirs.length
+
+    // 40
     val subDirId = (hash / localDirs.length) % subDirsPerLocalDir
 
     // Create the subdirectory if it doesn't already exist
@@ -65,11 +74,17 @@ private[spark] class DiskBlockManager(conf: SparkConf, deleteFilesOnStop: Boolea
       if (old != null) {
         old
       } else {
+        // old = 0 ;
+
+        // tmp_shuffle的上一级目录不存在 , 需要根据subDirId格式为16进制的两位数字, 创建.
+        // 目录的名称由参数 `spark.diskStore.subDirectories` 控制
         val newDir = new File(localDirs(dirId), "%02x".format(subDirId))
         if (!newDir.exists() && !newDir.mkdir()) {
           throw new IOException(s"Failed to create local dir in $newDir.")
         }
         subDirs(dirId)(subDirId) = newDir
+
+        // /private/var/folders/37/9746t_yx10v2g49vkwtzjw_80000gn/T/blockmgr-021881f2-19bd-4981-8c78-c4fc8136f8ae/28
         newDir
       }
     }
@@ -123,10 +138,13 @@ private[spark] class DiskBlockManager(conf: SparkConf, deleteFilesOnStop: Boolea
 
   /** Produces a unique block id and File suitable for storing shuffled intermediate results. */
   def createTempShuffleBlock(): (TempShuffleBlockId, File) = {
+
+    // blockId实例 :  temp_shuffle_f333d690-deaf-4b17-8b30-c655f9616937
     var blockId = new TempShuffleBlockId(UUID.randomUUID())
     while (getFile(blockId).exists()) {
       blockId = new TempShuffleBlockId(UUID.randomUUID())
     }
+    // 返回: /private/var/folders/37/9746t_yx10v2g49vkwtzjw_80000gn/T/blockmgr-021881f2-19bd-4981-8c78-c4fc8136f8ae/0a/temp_shuffle_f333d690-deaf-4b17-8b30-c655f9616937
     (blockId, getFile(blockId))
   }
 

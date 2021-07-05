@@ -7,7 +7,7 @@ package org.apache.sparktest
 class phoenixTest {
 
   def main(args: Array[String]): Unit ={
-    val array = new Array[String](1,2,3,4,5).iterator.buffered
+//    val array = new Array[String](1,2,3,4,5).iterator.buffered
 
 
 
